@@ -269,7 +269,7 @@ class MainHook : IXposedHookLoadPackage {
                                     super.beforeHookedMethod(param)
                                     if (param.args[0] != null) {
                                         sessionConfiguration = param.args[0] as SessionConfiguration
-                                        outputConfiguration = OutputConfiguration(c2_virtual_surface)
+                                        outputConfiguration = OutputConfiguration(c2_virtual_surface!!)
                                         fake_sessionConfiguration = SessionConfiguration(
                                             sessionConfiguration!!.getSessionType(),
                                             Arrays.asList<OutputConfiguration>(outputConfiguration),

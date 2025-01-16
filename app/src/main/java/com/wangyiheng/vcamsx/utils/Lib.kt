@@ -10,7 +10,9 @@ class Lib {
         val frameList = mutableListOf<Bitmap>()
         try {
             retriever.setDataSource(videoPath)
-            val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION).toLong()
+            val durationString = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            //update 0 to 9
+            val duration = durationString?.toLongOrNull() ?: 9L
             val frameRate = 10000000
 
             for (time in 0..duration step frameRate.toLong()) {

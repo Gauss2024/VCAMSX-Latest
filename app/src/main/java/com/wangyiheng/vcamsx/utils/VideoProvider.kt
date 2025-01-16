@@ -20,7 +20,7 @@ class VideoProvider : ContentProvider(), KoinComponent {
 
 //    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor? {
 //        val readerContent = extractContent(uri.toString())
-//        Log.d("vcamsx", "内容"+readerContent)
+//        Log.i("vcamsx", "内容"+readerContent)
 //        // 获取外部文件目录
 //        val externalFilesDir = context?.getExternalFilesDir(null)?.absolutePath ?: return null
 //
@@ -52,7 +52,7 @@ class VideoProvider : ContentProvider(), KoinComponent {
 
         return try {
             // 直接使用ContentResolver打开固定URI指向的文件的ParcelFileDescriptor
-            context.contentResolver.openFileDescriptor(fixedUri, mode)
+            context?.contentResolver?.openFileDescriptor(fixedUri, mode)
         } catch (e: Exception) { // 捕获所有异常，包括FileNotFoundException
             Log.e("Error", "打开文件失败: ${e.message}")
             null

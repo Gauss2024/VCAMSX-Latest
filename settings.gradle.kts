@@ -13,6 +13,9 @@ dependencyResolutionManagement {
         mavenCentral()
         maven("https://api.xposed.info/")
         maven ("https://maven.pkg.github.com/GCX-HCI/tray" )
+        maven(  "https://maven.aliyun.com/repository/google")
+        maven(  "https://maven.aliyun.com/repository/gradle-plugin")
+        maven(  "https://maven.aliyun.com/repository/public")
     }
 }
 
