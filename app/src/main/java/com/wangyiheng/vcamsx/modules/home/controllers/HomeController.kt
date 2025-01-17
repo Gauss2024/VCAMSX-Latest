@@ -42,7 +42,7 @@ class HomeController: ViewModel(),KoinComponent {
     val isLiveStreamingDisplay =  mutableStateOf(false)
     val isVideoDisplay =  mutableStateOf(false)
 //    rtmp://ns8.indexforce.com/home/mystream
-    var liveURL = mutableStateOf("rtmp://ns8.indexforce.com/home/mystream")
+    var liveURL = mutableStateOf("rtmp://192.168.1.172/sz/aa1")
 
     fun init(){
         getState()
@@ -174,7 +174,7 @@ class HomeController: ViewModel(),KoinComponent {
                     start()
                 }
             } catch (e: Exception) {
-                Log.d("vcamsx","播放报错$e")
+                Log.d("kaixibo","播放报错$e")
             }
         }
     }

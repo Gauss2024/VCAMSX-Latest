@@ -5,7 +5,7 @@ import tv.danmaku.ijk.media.player.IjkMediaPlayer
 import java.util.*
 
 object MediaPlayerManager {
-    private const val MAX_PLAYER_COUNT = 5 // 最大播放器数量
+    private const val MAX_PLAYER_COUNT = 1 // 最大播放器数量
     private val playerQueue = LinkedList<IjkMediaPlayer>()
 
     init {

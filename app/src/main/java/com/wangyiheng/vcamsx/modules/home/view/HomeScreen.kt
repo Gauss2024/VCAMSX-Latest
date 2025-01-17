@@ -139,27 +139,27 @@ fun HomeScreen() {
                 context = context
             )
         }
-        val annotatedString = AnnotatedString.Builder("本软件免费，点击前往软件下载页").apply {
-            // 添加点击事件的范围
-            addStringAnnotation(
-                tag = "URL",
-                annotation = "https://github.com/iiheng/VCAMSX/releases",
-                start = 0,
-                end = 12
-            )
-        }.toAnnotatedString()
-
-        ClickableText(
-            text = annotatedString,
-            style = TextStyle(fontSize = 12.sp, textDecoration = TextDecoration.Underline)
-        ) { offset ->
-            annotatedString.getStringAnnotations("URL", offset, offset)
-                .firstOrNull()?.let { annotation ->
-                    // 在这里处理点击事件，比如打开一个浏览器
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(annotation.item))
-                    context.startActivity(intent)
-                }
-        }
+//        val annotatedString = AnnotatedString.Builder("本软件免费，点击前往软件下载页").apply {
+//            // 添加点击事件的范围
+//            addStringAnnotation(
+//                tag = "URL",
+//                annotation = "https://github.com/iiheng/VCAMSX/releases",
+//                start = 0,
+//                end = 12
+//            )
+//        }.toAnnotatedString()
+//
+//        ClickableText(
+//            text = annotatedString,
+//            style = TextStyle(fontSize = 12.sp, textDecoration = TextDecoration.Underline)
+//        ) { offset ->
+//            annotatedString.getStringAnnotations("URL", offset, offset)
+//                .firstOrNull()?.let { annotation ->
+//                    // 在这里处理点击事件，比如打开一个浏览器
+//                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(annotation.item))
+//                    context.startActivity(intent)
+//                }
+//        }
 
         LivePlayerDialog(homeController)
         VideoPlayerDialog(homeController)
