@@ -63,20 +63,20 @@ fun HomeScreen() {
             .fillMaxWidth()
 
         Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextField(
-                value = homeController.liveURL.value,
-                onValueChange = { homeController.liveURL.value = it },
-                label = { Text("RTMP链接：") }
-            )
-
-            Button(
-                modifier = buttonModifier,
-                onClick = {
-                    homeController.saveState()
-                }
-            ) {
-                Text("保存RTMP链接")
-            }
+//            TextField(
+//                value = homeController.liveURL.value,
+//                onValueChange = { homeController.liveURL.value = it },
+//                label = { Text("RTMP链接：") }
+//            )
+//
+//            Button(
+//                modifier = buttonModifier,
+//                onClick = {
+//                    homeController.saveState()
+//                }
+//            ) {
+//                Text("保存RTMP链接")
+//            }
             Button(
                 modifier = buttonModifier,
                 onClick = {
@@ -96,14 +96,14 @@ fun HomeScreen() {
                 Text("查看视频")
             }
 
-            Button(
-                modifier = buttonModifier,
-                onClick = {
-                    homeController.isLiveStreamingDisplay.value = true
-                }
-            ) {
-                Text("查看直播推流")
-            }
+//            Button(
+//                modifier = buttonModifier,
+//                onClick = {
+//                    homeController.isLiveStreamingDisplay.value = true
+//                }
+//            ) {
+//                Text("查看直播推流")
+//            }
 
             SettingRow(
                 label = "视频开关",
@@ -112,12 +112,12 @@ fun HomeScreen() {
                 context = context
             )
 
-            SettingRow(
-                label = "直播推流开关",
-                checkedState = homeController.isLiveStreamingEnabled,
-                onCheckedChange = { homeController.saveState() },
-                context = context
-            )
+//            SettingRow(
+//                label = "直播推流开关",
+//                checkedState = homeController.isLiveStreamingEnabled,
+//                onCheckedChange = { homeController.saveState() },
+//                context = context
+//            )
 
             SettingRow(
                 label = "音量开关",
