@@ -1,5 +1,7 @@
 package com.wangyiheng.vcamsx.data.services
 
+import cn.dianbobo.dbb.util.HLog
+import com.wangyiheng.vcamsx.MainHook.Companion.TAG
 import okhttp3.OkHttpClient
 import org.koin.dsl.module
 import retrofit2.Retrofit
@@ -18,6 +20,7 @@ val networkModule = module {
     }
 
     single {
+        HLog.d(TAG,"aaa 1111111111111111111 networkModule,single) ）")
         Retrofit.Builder()
             .baseUrl(BASE_URL)
             .addConverterFactory(GsonConverterFactory.create())
