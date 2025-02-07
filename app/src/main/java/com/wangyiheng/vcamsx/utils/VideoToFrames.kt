@@ -258,11 +258,6 @@ class VideoToFrames : Runnable {
         return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
     }
 
-//    fun bitmapToByteArray(bitmap: Bitmap, format: Bitmap.CompressFormat, quality: Int): ByteArray {
-//        val stream = ByteArrayOutputStream()
-//        bitmap.compress(format, quality, stream)
-//        return stream.toByteArray()
-//    }
 
     fun bitmapToYUV(bitmap: Bitmap): ByteArray {
         val width = bitmap.width
@@ -294,7 +289,7 @@ class VideoToFrames : Runnable {
 
 
     private fun getDataFromImage(image: Image): ByteArray {
-
+        HLog.d(MainHook.TAG, "aaa 000 getDataFromImage 🟡 解码输出: width=${image.width}, height=${image.height}, format=${image.format}")
         logImageFormat(image)
         if (!isImageFormatSupported(image)) {
             throw RuntimeException("can't convert Image to byte array, format ${image.format}")

@@ -5,6 +5,8 @@ import android.net.Uri
 import android.util.Log
 import android.view.Surface
 import android.widget.Toast
+import cn.dianbobo.dbb.util.HLog
+import com.wangyiheng.vcamsx.MainHook
 import com.wangyiheng.vcamsx.MainHook.Companion.c2_reader_Surfcae
 import com.wangyiheng.vcamsx.MainHook.Companion.context
 import com.wangyiheng.vcamsx.MainHook.Companion.original_c1_preview_SurfaceTexture
@@ -167,6 +169,7 @@ object VideoPlayer {
             }
         } catch (e: Exception) {
             // 这里可以添加更详细的异常处理或日志记录
+            Log.d(MainHook.TAG,"aaa 000 handleMediaPlayer error=${e.message}")
             logError("MediaPlayer Error", e)
         }
     }
@@ -197,6 +200,7 @@ object VideoPlayer {
     }
 
     fun c1_camera_play() {
+        HLog.d(MainHook.TAG,"aaa 000 111 c1_camera_play  视频开始播放。。。。。")
         if (original_c1_preview_SurfaceTexture != null) {
             original_preview_Surface = Surface(original_c1_preview_SurfaceTexture)
             if(original_preview_Surface!!.isValid == true){
