@@ -12,9 +12,7 @@ import android.hardware.camera2.params.SessionConfiguration
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
-import android.util.Log
 import android.view.Surface
-import android.view.SurfaceHolder
 import android.widget.Toast
 import cn.dianbobo.dbb.util.HLog
 import com.wangyiheng.vcamsx.utils.InfoProcesser.videoStatus
@@ -40,8 +38,6 @@ class MainHook : IXposedHookLoadPackage {
         var context: Context? = null
         var origin_preview_camera: Camera? = null
         var fake_SurfaceTexture: SurfaceTexture? = null
-        var c1FakeTexture: SurfaceTexture? = null
-        var c1FakeSurface: Surface? = null
 
         var sessionConfiguration: SessionConfiguration? = null
         var outputConfiguration: OutputConfiguration? = null
@@ -57,8 +53,6 @@ class MainHook : IXposedHookLoadPackage {
         var camera_callback_calss: Class<*>? = null
         var hw_decode_obj: VideoToFrames? = null
 
-        var mcamera1: Camera? = null
-        var oriHolder: SurfaceHolder? = null
 
     }
 
@@ -71,10 +65,6 @@ class MainHook : IXposedHookLoadPackage {
         if(lpparam.packageName == "com.wangyiheng.vcamsx"){
             return
         }
-//        if(lpparam.processName.contains(":")) {
-//            Log.d(TAG,"当前进程："+lpparam.processName)
-//            return
-//        }
 
         //获取context
         XposedHelpers.findAndHookMethod(
@@ -160,29 +150,7 @@ class MainHook : IXposedHookLoadPackage {
                 }
             })
 
-        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewDisplay", SurfaceHolder::class.java, object : XC_MethodHook() {
-            @Throws(Throwable::class)
-            override fun beforeHookedMethod(param: MethodHookParam) {
-                HLog.d(TAG,"aaa ffffffffffffffffff findAndHookMethod,(android.hardware.Camera)  method （setPreviewDisplay）")
-                mcamera1 = param.thisObject as Camera
-                oriHolder = param.args[0] as SurfaceHolder
-                if (c1FakeTexture == null) {
-                    c1FakeTexture = SurfaceTexture(11)
-                } else {
-                    c1FakeTexture!!.release()
-                    c1FakeTexture = SurfaceTexture(11)
-                }
 
-                if (c1FakeSurface == null) {
-                    c1FakeSurface = Surface(c1FakeTexture)
-                } else {
-                    c1FakeSurface!!.release()
-                    c1FakeSurface = Surface(c1FakeTexture)
-                }
-                mcamera1!!.setPreviewTexture(c1FakeTexture)
-                param.result = null
-            }
-        })
 
         XposedHelpers.findAndHookMethod(
             "android.hardware.camera2.CameraManager", lpparam.classLoader, "openCamera",

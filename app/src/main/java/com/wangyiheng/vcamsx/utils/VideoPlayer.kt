@@ -7,7 +7,6 @@ import android.view.Surface
 import android.widget.Toast
 import com.wangyiheng.vcamsx.MainHook.Companion.c2_reader_Surfcae
 import com.wangyiheng.vcamsx.MainHook.Companion.context
-import com.wangyiheng.vcamsx.MainHook.Companion.oriHolder
 import com.wangyiheng.vcamsx.MainHook.Companion.original_c1_preview_SurfaceTexture
 import com.wangyiheng.vcamsx.MainHook.Companion.original_preview_Surface
 import com.wangyiheng.vcamsx.utils.InfoProcesser.videoStatus
@@ -205,12 +204,6 @@ object VideoPlayer {
             }
         }
 
-        if(oriHolder?.surface != null){
-            original_preview_Surface = oriHolder?.surface
-            if(original_preview_Surface!!.isValid == true){
-                handleMediaPlayer(original_preview_Surface!!)
-            }
-        }
 
         c2_reader_Surfcae?.let { surface ->
             c2_reader_play(surface)
