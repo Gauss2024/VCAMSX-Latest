@@ -5,6 +5,8 @@ import android.net.Uri
 import android.util.Log
 import android.view.Surface
 import android.widget.Toast
+import cn.dianbobo.dbb.util.HLog
+import com.wangyiheng.vcamsx.MainHook.Companion.TAG
 import com.wangyiheng.vcamsx.MainHook.Companion.c2_reader_Surfcae
 import com.wangyiheng.vcamsx.MainHook.Companion.context
 import com.wangyiheng.vcamsx.MainHook.Companion.oriHolder
@@ -85,6 +87,7 @@ object VideoPlayer {
             setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "packet-buffering", 0L)
             setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "framedrop", 1L)
 
+
             Toast.makeText(context, videoStatus!!.liveURL, Toast.LENGTH_SHORT).show()
 
             // 应用公共配置
@@ -138,6 +141,8 @@ object VideoPlayer {
             // 数据初始化
             InfoProcesser.initStatus()
 
+
+
             videoStatus?.also { status ->
                 if (!status.isVideoEnable && !status.isLiveStreamingEnabled) return
 
@@ -157,6 +162,7 @@ object VideoPlayer {
                                 it.setSurface(surface)
                             } else {
                                 releaseMediaPlayer()
+
                                 initMediaPlayer(surface)
                             }
                         } ?: run {
@@ -197,16 +203,17 @@ object VideoPlayer {
         }
     }
 
+    //原始预览
     fun c1_camera_play() {
+        HLog.d(TAG,"aaa 000 111 c1_camera_play  视频开始播放。。。。。")
         if (original_c1_preview_SurfaceTexture != null) {
             original_preview_Surface = Surface(original_c1_preview_SurfaceTexture)
-            if(original_preview_Surface!!.isValid == true){
-                handleMediaPlayer(original_preview_Surface!!)
-            }
-        }
 
-        if(oriHolder?.surface != null){
-            original_preview_Surface = oriHolder?.surface
+            HLog.d(TAG,"aaa 000 222 c1_camera_play  。。。。。original_preview_Surface=${original_preview_Surface?.isValid} oriHolder=${oriHolder}")
+
+            HLog.d(TAG,"aaa 000 333 c1_camera_play   oriHolder height=${oriHolder?.surfaceFrame?.height()} width=${oriHolder?.surfaceFrame?.width()}")
+            oriHolder?.setFixedSize(1080, 1920)
+            HLog.d(TAG,"aaa 000 333 c1_camera_play after  oriHolder height=${oriHolder?.surfaceFrame?.height()} width=${oriHolder?.surfaceFrame?.width()}")
             if(original_preview_Surface!!.isValid == true){
                 handleMediaPlayer(original_preview_Surface!!)
             }
@@ -214,7 +221,9 @@ object VideoPlayer {
 
         c2_reader_Surfcae?.let { surface ->
             c2_reader_play(surface)
+            HLog.d(TAG,"aaa 000 444 c2_reader_play")
         }
+        HLog.d(TAG,"aaa 000 555 complete....")
     }
 
     fun c2_reader_play(c2_reader_Surfcae:Surface){

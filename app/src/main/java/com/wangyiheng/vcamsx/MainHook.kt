@@ -2,6 +2,7 @@ package com.wangyiheng.vcamsx
 
 import android.app.Application
 import android.content.Context
+import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
 import android.hardware.Camera
 import android.hardware.Camera.PreviewCallback
@@ -12,10 +13,8 @@ import android.hardware.camera2.params.SessionConfiguration
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
-import android.util.Log
 import android.view.Surface
 import android.view.SurfaceHolder
-import android.widget.Toast
 import cn.dianbobo.dbb.util.HLog
 import com.wangyiheng.vcamsx.utils.InfoProcesser.videoStatus
 import com.wangyiheng.vcamsx.utils.OutputImageFormat
@@ -29,25 +28,27 @@ import de.robv.android.xposed.XC_MethodHook.MethodHookParam
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import kotlinx.coroutines.*
 import java.util.*
-import kotlin.math.min
 
 
 class MainHook : IXposedHookLoadPackage {
     companion object {
         val TAG = "vcamsx"
         @Volatile
+        //解码数据
         var data_buffer = byteArrayOf(0)
         var context: Context? = null
-        var origin_preview_camera: Camera? = null
+        //camera1使用，替换真实摄像头
         var fake_SurfaceTexture: SurfaceTexture? = null
-        var c1FakeTexture: SurfaceTexture? = null
-        var c1FakeSurface: Surface? = null
 
+        //camera2 使用
         var sessionConfiguration: SessionConfiguration? = null
+        //camera2 使用
         var outputConfiguration: OutputConfiguration? = null
         var fake_sessionConfiguration: SessionConfiguration? = null
 
+        //camera2 使用，RTMP使用
         var original_preview_Surface: Surface? = null
+        //camera1使用
         var original_c1_preview_SurfaceTexture:SurfaceTexture? = null
         var isPlaying:Boolean = false
         var needRecreate: Boolean = false
@@ -57,7 +58,6 @@ class MainHook : IXposedHookLoadPackage {
         var camera_callback_calss: Class<*>? = null
         var hw_decode_obj: VideoToFrames? = null
 
-        var mcamera1: Camera? = null
         var oriHolder: SurfaceHolder? = null
 
     }
@@ -66,15 +66,13 @@ class MainHook : IXposedHookLoadPackage {
     private var c2_state_callback_class: Class<*>? = null
     private var c2_state_callback: CameraDevice.StateCallback? = null
 
+
     // Xposed模块中
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if(lpparam.packageName == "com.wangyiheng.vcamsx"){
             return
         }
-//        if(lpparam.processName.contains(":")) {
-//            Log.d(TAG,"当前进程："+lpparam.processName)
-//            return
-//        }
+
 
         //获取context  camera1 与camera2 都要调用。
         XposedHelpers.findAndHookMethod(
@@ -114,13 +112,10 @@ class MainHook : IXposedHookLoadPackage {
                     if (param.args[0] == fake_SurfaceTexture) {
                         return
                     }
-                    if (origin_preview_camera != null && origin_preview_camera == param.thisObject) {
-                        param.args[0] = fake_SurfaceTexture
-                        return
-                    }
 
-                    origin_preview_camera = param.thisObject as Camera
                     original_c1_preview_SurfaceTexture = param.args[0] as SurfaceTexture
+                    //add by gauss
+                    original_c1_preview_SurfaceTexture?.setDefaultBufferSize(1080,1920)
 
                     fake_SurfaceTexture = if (fake_SurfaceTexture == null) {
                         SurfaceTexture(10)
@@ -128,9 +123,32 @@ class MainHook : IXposedHookLoadPackage {
                         fake_SurfaceTexture!!.release()
                         SurfaceTexture(10)
                     }
+                    fake_SurfaceTexture?.setDefaultBufferSize(1080,1920)
+
                     param.args[0] = fake_SurfaceTexture
+
+                    HLog.d(TAG,"aaa 222 初始话 fake_SurfaceTexture 成功 fake_SurfaceTexture=${fake_SurfaceTexture?.toString()}")
                 }
             })
+
+        // 在 SurfaceHolder.Callback 中处理 surfaceCreated
+        XposedHelpers.findAndHookMethod(
+            SurfaceHolder.Callback::class.java,
+            "surfaceCreated",
+            SurfaceHolder::class.java,
+            object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam?) {
+                    super.beforeHookedMethod(param)
+                    HLog.d(TAG, "aaa 666 Surface before ready.")
+                }
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val surfaceHolder = param.args[0] as SurfaceHolder
+                    // 标记 Surface 已准备好
+                    HLog.d(TAG, "aaa 666 Surface after ready.")
+                }
+            }
+        )
+
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "addCallbackBuffer",
             ByteArray::class.java, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
@@ -140,16 +158,18 @@ class MainHook : IXposedHookLoadPackage {
                     }
                 }
             })
-        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewCallbackWithBuffer",
-            PreviewCallback::class.java, object : XC_MethodHook() {
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"aaa 444 findAndHookMethod,(android.hardware.Camera)  method （setPreviewCallbackWithBuffer）")
-                    if(videoStatus?.isVideoEnable == false) return
-                    if (param.args[0] != null) {
-                        process_callback(param)
-                    }
+        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewCallbackWithBuffer", PreviewCallback::class.java, object : XC_MethodHook() {
+            override fun beforeHookedMethod(param: MethodHookParam) {
+                HLog.d(TAG,"aaa 444 findAndHookMethod,(android.hardware.Camera)  method （setPreviewCallbackWithBuffer） videostatus=${videoStatus?.isVideoEnable }")
+
+
+
+                if(videoStatus?.isVideoEnable == false) return
+                if (param.args[0] != null) {
+                    process_callback(param)
                 }
-            })
+            }
+        })
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "startPreview", object : XC_MethodHook() {
             override fun beforeHookedMethod(param: MethodHookParam?) {
                 HLog.d(TAG,"aaa 555 findAndHookMethod,(android.hardware.Camera)  method （startPreview）视频开始播放。。。。。")
@@ -159,30 +179,86 @@ class MainHook : IXposedHookLoadPackage {
 
 
 
+
+        XposedHelpers.findAndHookMethod(
+            "android.hardware.Camera\$Parameters",  // 目标类
+            lpparam.classLoader,
+            "setPreviewSize",  // 目标方法
+            Int::class.java, Int::class.java,  // 参数类型：width 和 height
+            object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    val originalWidth = param.args[0] as Int
+                    val originalHeight = param.args[1] as Int
+                    //HLog.d(TAG, "aaa 666 Hook setPreviewSize() 被调用: width=$originalWidth, height=$originalHeight")
+
+                    // 交换宽高，使 width = 720, height = 1280
+                    val newWidth = 1080//originalHeight
+                    val newHeight = 1920//originalWidth
+                    param.args[0] = newWidth
+                    param.args[1] = newHeight
+
+                    //HLog.d(TAG, "aaa 666 Hook setPreviewSize() 修改为: width=$newWidth, height=$newHeight")
+                }
+            }
+        )
+
 //好像走不到
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewDisplay", SurfaceHolder::class.java, object : XC_MethodHook() {
             @Throws(Throwable::class)
             override fun beforeHookedMethod(param: MethodHookParam) {
                 HLog.d(TAG,"aaa 666 findAndHookMethod,(android.hardware.Camera)  method （setPreviewDisplay）")
-                mcamera1 = param.thisObject as Camera
-                oriHolder = param.args[0] as SurfaceHolder
-                if (c1FakeTexture == null) {
-                    c1FakeTexture = SurfaceTexture(11)
-                } else {
-                    c1FakeTexture!!.release()
-                    c1FakeTexture = SurfaceTexture(11)
-                }
 
-                if (c1FakeSurface == null) {
-                    c1FakeSurface = Surface(c1FakeTexture)
-                } else {
-                    c1FakeSurface!!.release()
-                    c1FakeSurface = Surface(c1FakeTexture)
-                }
-                mcamera1!!.setPreviewTexture(c1FakeTexture)
+                oriHolder = param.args[0] as SurfaceHolder
+
                 param.result = null
             }
-        })
+
+            }
+        )
+
+        //不在使用
+        XposedHelpers.findAndHookMethod(
+            "android.hardware.Camera",
+            lpparam.classLoader,
+            "getParameters",
+            object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    val parameters = param.result as Camera.Parameters
+
+                    try {
+                        // 正确获取 `getPreviewSize()` 方法
+                        val getPreviewSizeMethod =
+                            parameters::class.java.getMethod("getPreviewSize")
+                        val previewSize = getPreviewSizeMethod.invoke(parameters)
+
+                        if (previewSize != null) {
+                            val widthField = previewSize::class.java.getDeclaredField("width")
+                            val heightField = previewSize::class.java.getDeclaredField("height")
+                            widthField.isAccessible = true
+                            heightField.isAccessible = true
+
+                            val originalWidth = widthField.getInt(previewSize)
+                            val originalHeight = heightField.getInt(previewSize)
+
+                            // 交换宽高
+                            widthField.setInt(previewSize, 1080)
+                            heightField.setInt(previewSize, 1920)
+
+                            HLog.d(
+                                TAG,
+                                "aaa 333 Hook getParameters(): 交换后 width=${
+                                    widthField.get(previewSize)
+                                }, height=${heightField.get(previewSize)}"
+                            )
+                        }
+                    } catch (e: Exception) {
+                        HLog.d(TAG, "aaa 333 修改 previewSize 失败: $e")
+                    }
+                }
+            }
+        )
+
+
 //camera 2 需要
         XposedHelpers.findAndHookMethod(
             "android.hardware.camera2.CameraManager", lpparam.classLoader, "openCamera",
@@ -210,44 +286,81 @@ class MainHook : IXposedHookLoadPackage {
     }
 
     private fun process_callback(param: MethodHookParam) {
+        if (param.args[0] == null) {
+            HLog.d(TAG, "aaa 888 param.args[0] is null, skipping process_callback")
+            return
+        }
+
         val preview_cb_class: Class<*> = param.args[0].javaClass
-        XposedHelpers.findAndHookMethod(preview_cb_class, "onPreviewFrame",
-            ByteArray::class.java,
-            Camera::class.java, object : XC_MethodHook() {
+        XposedHelpers.findAndHookMethod(
+            preview_cb_class, "onPreviewFrame",
+            ByteArray::class.java, Camera::class.java,
+            object : XC_MethodHook() {
                 @Throws(Throwable::class)
                 override fun beforeHookedMethod(paramd: MethodHookParam) {
-                    HLog.d(TAG,"aaa 888 findAndHookMethod,"+preview_cb_class.name+")  method （onPreviewFrame）")
+                    HLog.d(TAG, "aaa 888 Hooked onPreviewFrame in ${preview_cb_class.name}")
+
+                    val camera = paramd.args[1] as Camera
+                    val parameters = camera.parameters
+                    val previewSize = parameters.previewSize
+                    val expectedSize  = previewSize.width * previewSize.height * ImageFormat.getBitsPerPixel(ImageFormat.NV21) / 8
+                    HLog.d(TAG, "aaa 888 摄像头预览分辨率: width=${previewSize.width}, height=${previewSize.height}, 帧大小 expectedSize=${expectedSize}  data_buffer==${data_buffer?.size}")
+
                     val localcam = paramd.args[1] as Camera
-                    if (localcam ==  camera_onPreviewFrame) {
-                        while ( data_buffer == null) {
+                    if (localcam == camera_onPreviewFrame) {
+                        if (data_buffer == null || data_buffer.size < expectedSize) {
+                            HLog.d(TAG, "aaa 888 非首次 data_buffer 为空或大小不足: ${data_buffer?.size ?: 0}, 需要: ${expectedSize}")
+                            //修正大小
+                            return
                         }
-                        System.arraycopy(data_buffer, 0, paramd.args[0], 0, min(data_buffer.size.toDouble(), (paramd.args[0] as ByteArray).size.toDouble()).toInt())
+
+                        var targetBuffer = paramd.args[0] as? ByteArray
+                        if (targetBuffer == null || targetBuffer.size < expectedSize) {
+                            HLog.d(TAG, "aaa 888 非首次 目标缓冲区为空或大小不足: ${targetBuffer?.size ?: 0}, 需要: ${expectedSize}")
+                            //return
+                            return
+                        }
+
+                        // 旋转帧数据
+                        val rotatedData = rotateNV21(data_buffer, previewSize.width, previewSize.height, 90)
+                        System.arraycopy(rotatedData, 0, targetBuffer, 0, rotatedData.size)
                     } else {
+                        HLog.d(TAG, "aaa 888 首次 localcam != camera_onPreviewFrame Initializing new VideoToFrames instance")
                         camera_callback_calss = preview_cb_class
-                        camera_onPreviewFrame = paramd.args[1] as Camera
-                        val mwidth = camera_onPreviewFrame!!.getParameters().getPreviewSize().width
-                        val mhight = camera_onPreviewFrame!!.getParameters().getPreviewSize().height
-                        if ( hw_decode_obj != null) {
-                             hw_decode_obj!!.stopDecode()
+                        camera_onPreviewFrame = localcam
+
+                        hw_decode_obj?.stopDecode()
+                        hw_decode_obj = VideoToFrames().apply {
+                            setSaveFrames(OutputImageFormat.NV21)
                         }
-                        Toast.makeText(context, """
-                                视频需要分辨率与摄像头完全相同
-                                宽：${mwidth}
-                                高：${mhight}
-                                """.trimIndent(), Toast.LENGTH_SHORT).show()
-                        hw_decode_obj = VideoToFrames()
-                        hw_decode_obj!!.setSaveFrames(OutputImageFormat.NV21)
 
                         val videoUrl = "content://com.wangyiheng.vcamsx.videoprovider"
                         val videoPathUri = Uri.parse(videoUrl)
-                        hw_decode_obj!!.decode( videoPathUri )
-                        while ( data_buffer == null) {
+                        hw_decode_obj?.decode(videoPathUri)
+
+                        if (data_buffer == null || data_buffer.size < expectedSize) {
+                            HLog.d(TAG, "aaa 888 首次 data_buffer 为空或大小不足: ${data_buffer?.size ?: 0}, 需要: ${expectedSize}")
+                            //修正大小
+                            return
                         }
-                        System.arraycopy(data_buffer, 0, paramd.args[0], 0, min(data_buffer.size.toDouble(), (paramd.args[0] as ByteArray).size.toDouble()).toInt())
+
+                        var targetBuffer = paramd.args[0] as? ByteArray
+                        if (targetBuffer == null || targetBuffer.size < expectedSize) {
+                            HLog.d(TAG, "aaa 888 首次 目标缓冲区为空或大小不足: ${targetBuffer?.size ?: 0}, 需要: ${expectedSize}")
+                            //return
+                            return
+                        }
+
+                        // 旋转帧数据
+                        val rotatedData = rotateNV21(data_buffer, previewSize.width, previewSize.height, 90)
+                        System.arraycopy(rotatedData, 0, targetBuffer, 0, rotatedData.size)
                     }
                 }
-            })
+            }
+        )
     }
+
+
 
 //camera 2使用
     private fun process_camera2_init(c2StateCallbackClass: Class<Any>?, lpparam: XC_LoadPackage.LoadPackageParam) {
@@ -349,6 +462,37 @@ class MainHook : IXposedHookLoadPackage {
             c2_virtual_surface = createVirtualSurface()
         }
         return c2_virtual_surface
+    }
+
+
+    fun rotateNV21(input: ByteArray, width: Int, height: Int, rotation: Int): ByteArray {
+        val output = ByteArray(input.size)
+        val frameSize = width * height
+        val swap = rotation == 90 || rotation == 270
+        val newWidth = if (swap) height else width
+        val newHeight = if (swap) width else height
+
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val xOut = when (rotation) {
+                    90 -> y
+                    180 -> width - x - 1
+                    270 -> height - y - 1
+                    else -> x
+                }
+                val yOut = when (rotation) {
+                    90 -> width - x - 1
+                    180 -> height - y - 1
+                    270 -> x
+                    else -> y
+                }
+                output[yOut * newWidth + xOut] = input[y * width + x]
+                val uvIndex = frameSize + (y / 2) * width + (x and 1.inv())
+                val uvOutIndex = frameSize + (yOut / 2) * newWidth + (xOut and 1.inv())
+                output[uvOutIndex] = input[uvIndex]
+            }
+        }
+        return output
     }
 }
 
