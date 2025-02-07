@@ -71,7 +71,7 @@ class MainHook : IXposedHookLoadPackage {
             "android.app.Instrumentation", lpparam.classLoader, "callApplicationOnCreate",
             Application::class.java, object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam?) {
-                    HLog.d(TAG,"aaa bbbbbbbbbbbbbbbbb findAndHookMethod,(android.app.Instrumentation) method （callApplicationOnCreate）")
+                    HLog.d(TAG,"aaa 111 findAndHookMethod,(android.app.Instrumentation) method （callApplicationOnCreate）")
                     param?.args?.firstOrNull()?.let { arg ->
                         if (arg is Application) {
                             val applicationContext = arg.applicationContext
@@ -97,7 +97,7 @@ class MainHook : IXposedHookLoadPackage {
             SurfaceTexture::class.java, object : XC_MethodHook() {
                 @Throws(Throwable::class)
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"aaa ccccccccccc bilibili findAndHookMethod,(android.hardware.Camera) method （setPreviewTexture）")
+                    HLog.d(TAG,"aaa 222   findAndHookMethod,(android.hardware.Camera) method （setPreviewTexture）")
                     if (param.args[0] == null) {
                         return
                     }
@@ -124,7 +124,7 @@ class MainHook : IXposedHookLoadPackage {
 
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "startPreview", object : XC_MethodHook() {
             override fun beforeHookedMethod(param: MethodHookParam?) {
-                HLog.d(TAG,"aaa ddddddddddddddd findAndHookMethod,(android.hardware.Camera)  method （startPreview）")
+                HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview）")
                 c1_camera_play()
             }
         })
@@ -132,7 +132,7 @@ class MainHook : IXposedHookLoadPackage {
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewCallbackWithBuffer",
             PreviewCallback::class.java, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"aaa eeeeeeeeeeeeeeeeee findAndHookMethod,(android.hardware.Camera)  method （setPreviewCallbackWithBuffer）")
+                    HLog.d(TAG,"aaa 444 findAndHookMethod,(android.hardware.Camera)  method （setPreviewCallbackWithBuffer）")
                     if(videoStatus?.isVideoEnable == false) return
                     if (param.args[0] != null) {
                         process_callback(param)
@@ -143,7 +143,7 @@ class MainHook : IXposedHookLoadPackage {
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "addCallbackBuffer",
             ByteArray::class.java, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"aaa eeeeeeeeeeeeeee findAndHookMethod,(android.hardware.Camera)  method （addCallbackBuffer）")
+                    HLog.d(TAG,"aaa 555 findAndHookMethod,(android.hardware.Camera)  method （addCallbackBuffer）")
                     if (param.args[0] != null) {
                         param.args[0] = ByteArray((param.args[0] as ByteArray).size)
                     }
@@ -159,7 +159,7 @@ class MainHook : IXposedHookLoadPackage {
             Handler::class.java, object : XC_MethodHook() {
                 @Throws(Throwable::class)
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"aaa ggggggggggggggggggggggg findAndHookMethod,(android.hardware.camera2.CameraManager)  method （openCamera）")
+                    HLog.d(TAG,"aaa 666 findAndHookMethod,(android.hardware.camera2.CameraManager)  method （openCamera）")
                     try {
                         if(param.args[1] == null){
                             return
@@ -184,13 +184,16 @@ class MainHook : IXposedHookLoadPackage {
             Camera::class.java, object : XC_MethodHook() {
                 @Throws(Throwable::class)
                 override fun beforeHookedMethod(paramd: MethodHookParam) {
-                    HLog.d(TAG,"aaa hhhhhhhhhhh findAndHookMethod,"+preview_cb_class.name+")  method （onPreviewFrame）")
+                    HLog.d(TAG,"aaa 777 findAndHookMethod,"+preview_cb_class.name+")  method （onPreviewFrame）")
                     val localcam = paramd.args[1] as Camera
                     if (localcam ==  camera_onPreviewFrame) {
+                        HLog.d(TAG,"aaa 777 非首次")
                         while ( data_buffer == null) {
+                            HLog.d(TAG,"aaa 777 非首次 data_buffer is null")
                         }
                         System.arraycopy(data_buffer, 0, paramd.args[0], 0, min(data_buffer.size.toDouble(), (paramd.args[0] as ByteArray).size.toDouble()).toInt())
                     } else {
+                        HLog.d(TAG,"aaa 777 首次")
                         camera_callback_calss = preview_cb_class
                         camera_onPreviewFrame = paramd.args[1] as Camera
                         val mwidth = camera_onPreviewFrame!!.getParameters().getPreviewSize().width
@@ -210,6 +213,7 @@ class MainHook : IXposedHookLoadPackage {
                         val videoPathUri = Uri.parse(videoUrl)
                         hw_decode_obj!!.decode( videoPathUri )
                         while ( data_buffer == null) {
+                            HLog.d(TAG,"aaa 777 首次 data_buffer is null")
                         }
                         System.arraycopy(data_buffer, 0, paramd.args[0], 0, min(data_buffer.size.toDouble(), (paramd.args[0] as ByteArray).size.toDouble()).toInt())
                     }
@@ -222,7 +226,7 @@ class MainHook : IXposedHookLoadPackage {
         XposedHelpers.findAndHookMethod(c2StateCallbackClass, "onOpened", CameraDevice::class.java, object : XC_MethodHook() {
             @Throws(Throwable::class)
             override fun beforeHookedMethod(param: MethodHookParam) {
-                HLog.d(TAG,"bbbbb 1111111111111111111 findAndHookMethod,process_camera2_init)  method （onOpend）")
+                HLog.d(TAG,"aaa 888 findAndHookMethod,process_camera2_init)  method （onOpend）")
                 needRecreate = true
                 createVirtualSurface()
 
@@ -269,7 +273,7 @@ class MainHook : IXposedHookLoadPackage {
             android.view.Surface::class.java, object : XC_MethodHook() {
                 @Throws(Throwable::class)
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"bbbbb 2222222222222 android.hardware.camera2.CaptureRequest.Builder)  method （addTarget）")
+                    HLog.d(TAG,"aaa 999 android.hardware.camera2.CaptureRequest.Builder)  method （addTarget）")
                     if (param.args[0] != null) {
                         if(param.args[0] == c2_virtual_surface)return
                         val surfaceInfo = param.args[0].toString()
@@ -294,7 +298,7 @@ class MainHook : IXposedHookLoadPackage {
             "build",object :XC_MethodHook(){
             @Throws(Throwable::class)
             override fun beforeHookedMethod(param: MethodHookParam) {
-                HLog.d(TAG,"bbbbb 33333333333333333 android.hardware.camera2.CaptureRequest.Builder)  method （build）")
+                HLog.d(TAG,"aaa  101010 android.hardware.camera2.CaptureRequest.Builder)  method （build）")
                 camera2Play()
             }
         })

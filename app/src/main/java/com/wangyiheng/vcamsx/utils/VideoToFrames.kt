@@ -6,9 +6,10 @@ import android.media.*
 import android.net.Uri
 import android.util.Log
 import android.view.Surface
+import cn.dianbobo.dbb.util.HLog
 import com.wangyiheng.vcamsx.MainHook
+import com.wangyiheng.vcamsx.MainHook.Companion.TAG
 import com.wangyiheng.vcamsx.MainHook.Companion.context
-import de.robv.android.xposed.XposedBridge
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -62,7 +63,7 @@ class VideoToFrames : Runnable {
 
     override fun run() {
         try {
-            Log.d("vcamsxtoast","------开始解码------")
+            HLog.d(TAG,"aaa 000 ------开始解码------")
             videoFilePath?.let { videoDecode(it) }
         } catch (t: Throwable) {
             throwable = t
@@ -83,7 +84,7 @@ class VideoToFrames : Runnable {
             }
             val trackIndex = selectTrack(extractor)
             if (trackIndex < 0) {
-                XposedBridge.log("&#8203;``【oaicite:5】``&#8203;&#8203;``【oaicite:4】``&#8203;No video track found in $videoFilePath")
+                HLog.d(TAG,"aaa 000 No video track found in ${videoFilePath}")
             }
             extractor.selectTrack(trackIndex)
             val mediaFormat = extractor.getTrackFormat(trackIndex)
@@ -92,10 +93,10 @@ class VideoToFrames : Runnable {
             showSupportedColorFormat(decoder.codecInfo.getCapabilitiesForType(mime))
             if (isColorFormatSupported(decodeColorFormat, decoder.codecInfo.getCapabilitiesForType(mime))) {
                 mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, decodeColorFormat)
-                XposedBridge.log("&#8203;``【oaicite:3】``&#8203;&#8203;``【oaicite:2】``&#8203;set decode color format to type $decodeColorFormat")
+                HLog.d(TAG,"aaa 000 set decode color format to type ${decodeColorFormat}")
+
             } else {
-                Log.i(ContentValues.TAG, "unable to set decode color format, color format type $decodeColorFormat not supported")
-                XposedBridge.log("&#8203;``【oaicite:1】``&#8203;&#8203;``【oaicite:0】``&#8203;unable to set decode color format, color format type $decodeColorFormat not supported")
+                HLog.d(TAG,"aaa 000 unable to set decode color format, color format type ${decodeColorFormat}  not supported")
             }
             decodeFramesToImage(decoder, extractor, mediaFormat)
             decoder.stop()
@@ -142,6 +143,7 @@ class VideoToFrames : Runnable {
     }
 
     private fun decodeFramesToImage(decoder: MediaCodec, extractor: MediaExtractor, mediaFormat: MediaFormat) {
+        HLog.d(TAG,"aaa 000 start decodeFramesToImage ")
         var isFirst = false
         var startWhen: Long = 0
         val info = MediaCodec.BufferInfo()
@@ -201,8 +203,7 @@ class VideoToFrames : Runnable {
                         try {
                             Thread.sleep(sleepTime)
                         } catch (e: InterruptedException) {
-                            XposedBridge.log("&#8203;``【oaicite:1】``&#8203;" + e.toString())
-                            XposedBridge.log("&#8203;``【oaicite:0】``&#8203;线程延迟出错")
+                            HLog.d(TAG,"aaa 000 线程延迟出错 message=${e.toString()}")
                         }
                     }
                     decoder.releaseOutputBuffer(outputBufferId, true)
@@ -339,8 +340,6 @@ class VideoToFrames : Runnable {
         // Y Plane
         copyPlaneData(0, planes[0].buffer, planes[0].rowStride, planes[0].pixelStride, width, height, channelOffset, 1)
         channelOffset += width * height
-
-
         copyPlaneData(1, planes[2].buffer, planes[2].rowStride, planes[2].pixelStride, uvWidth, uvHeight, channelOffset, 2)
         copyPlaneData(2, planes[1].buffer, planes[1].rowStride, planes[1].pixelStride, uvWidth, uvHeight, channelOffset + 1, 2)
 
