@@ -186,9 +186,10 @@ object VideoPlayer {
 
     fun camera2Play() {
         // 带name的surface
+        //  // Camera2 第6步调用
         original_preview_Surface?.let { surface ->
             handleMediaPlayer(surface)
-            HLog.d(MainHook.TAG,"aaa 000 camera2Play handleMediaPlayer(surface) ")
+            HLog.d(MainHook.TAG,"aaa 000 camera2 step6 camera2Play handleMediaPlayer(surface) ")
         }
 
     }

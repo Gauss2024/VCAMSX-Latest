@@ -28,21 +28,26 @@ class MainHook : IXposedHookLoadPackage {
     companion object {
         val TAG = "vcamsx"
         @Volatile var context: Context? = null
+
+        //Camera1
         private var fakeSurfaceTexture: SurfaceTexture? = null
         private var fakeSurface: Surface? = null
         private val isDecoding = AtomicBoolean(false)
         private val mainHandler = Handler(Looper.getMainLooper())
 
-
+        //Camera2
         var sessionConfiguration: SessionConfiguration? = null
         var outputConfiguration: OutputConfiguration? = null
         var fake_sessionConfiguration: SessionConfiguration? = null
-
-        var original_preview_Surface: Surface? = null
-        var isPlaying:Boolean = false
         var needRecreate: Boolean = false
         var c2VirtualSurfaceTexture: SurfaceTexture? = null
-        var c2_reader_Surfcae: Surface? = null
+
+        //RTMP 网络流
+        var original_preview_Surface: Surface? = null
+
+        //RTMP,MediaPlayer Camere2 使用
+        var isPlaying:Boolean = false
+
 
 
     }
@@ -57,7 +62,7 @@ class MainHook : IXposedHookLoadPackage {
             return
         }
 
-        //获取context
+        //获取context，camera1与Camera2都会用
         XposedHelpers.findAndHookMethod(
             "android.app.Instrumentation", lpparam.classLoader, "callApplicationOnCreate",
             Application::class.java, object : XC_MethodHook() {
@@ -119,7 +124,7 @@ class MainHook : IXposedHookLoadPackage {
 
 
 
-
+        // Camera2 第二步调用
         XposedHelpers.findAndHookMethod(
             "android.hardware.camera2.CameraManager", lpparam.classLoader, "openCamera",
             String::class.java,
@@ -127,7 +132,7 @@ class MainHook : IXposedHookLoadPackage {
             Handler::class.java, object : XC_MethodHook() {
                 @Throws(Throwable::class)
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"aaa 666 findAndHookMethod,(android.hardware.camera2.CameraManager)  method （openCamera）")
+                    HLog.d(TAG,"aaa camera2 step2 findAndHookMethod,(android.hardware.camera2.CameraManager)  method （openCamera）")
                     try {
                         if(param.args[1] == null){
                             return
@@ -166,22 +171,23 @@ class MainHook : IXposedHookLoadPackage {
         HLog.d(TAG, "FakeSurface released")
     }
 
-
+    // Camera2 第3步调用
     private fun process_camera2_init(c2StateCallbackClass: Class<Any>?, lpparam: XC_LoadPackage.LoadPackageParam) {
         XposedHelpers.findAndHookMethod(c2StateCallbackClass, "onOpened", CameraDevice::class.java, object : XC_MethodHook() {
             @Throws(Throwable::class)
             override fun beforeHookedMethod(param: MethodHookParam) {
-                HLog.d(TAG,"aaa 888 findAndHookMethod,process_camera2_init)  method （onOpend）")
+                HLog.d(TAG,"aaa camera2 step3 findAndHookMethod,process_camera2_init)  method （onOpend）")
                 needRecreate = true
                 createVirtualSurface()
 
-                c2_reader_Surfcae = null
                 original_preview_Surface = null
 
+                //非抖音调用
                 if(lpparam.packageName != "com.ss.android.ugc.aweme" ){
                     XposedHelpers.findAndHookMethod(param.args[0].javaClass, "createCaptureSession", List::class.java, CameraCaptureSession.StateCallback::class.java, Handler::class.java, object : XC_MethodHook() {
                         @Throws(Throwable::class)
                         override fun beforeHookedMethod(paramd: MethodHookParam) {
+                            HLog.d(TAG,"aaa 888 111 findAndHookMethod,process_camera2_init)  method （onOpend）")
                             if (paramd.args[0] != null) {
                                 paramd.args[0] = listOf(c2_virtual_surface)
                             }
@@ -194,6 +200,7 @@ class MainHook : IXposedHookLoadPackage {
                                 override fun beforeHookedMethod(param: MethodHookParam) {
                                     super.beforeHookedMethod(param)
                                     if (param.args[0] != null) {
+                                        HLog.d(TAG,"aaa 888 222 findAndHookMethod,process_camera2_init)  method （onOpend）")
                                         sessionConfiguration = param.args[0] as SessionConfiguration
                                         outputConfiguration = OutputConfiguration(c2_virtual_surface!!)
                                         fake_sessionConfiguration = SessionConfiguration(
@@ -211,14 +218,14 @@ class MainHook : IXposedHookLoadPackage {
             }
         })
 
-
+        // Camera2 第4步调用
         XposedHelpers.findAndHookMethod("android.hardware.camera2.CaptureRequest.Builder",
             lpparam.classLoader,
             "addTarget",
             android.view.Surface::class.java, object : XC_MethodHook() {
                 @Throws(Throwable::class)
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"aaa 999 android.hardware.camera2.CaptureRequest.Builder)  method （addTarget）")
+                    HLog.d(TAG,"aaa camera2 step4  android.hardware.camera2.CaptureRequest.Builder)  method （addTarget）")
                     if (param.args[0] != null) {
                         if(param.args[0] == c2_virtual_surface)return
                         val surfaceInfo = param.args[0].toString()
@@ -227,9 +234,7 @@ class MainHook : IXposedHookLoadPackage {
                                 original_preview_Surface = param.args[0] as Surface
                             }
                         }else{
-                            if(c2_reader_Surfcae == null && lpparam.packageName != "com.ss.android.ugc.aweme"){
-                                c2_reader_Surfcae = param.args[0] as Surface
-                            }
+
                         }
                         if(lpparam.packageName != "com.ss.android.ugc.aweme"){
                             param.args[0] = c2_virtual_surface
@@ -237,13 +242,13 @@ class MainHook : IXposedHookLoadPackage {
                     }
                 }
             })
-
+        // Camera2 第5步调用
         XposedHelpers.findAndHookMethod("android.hardware.camera2.CaptureRequest.Builder",
             lpparam.classLoader,
             "build",object :XC_MethodHook(){
             @Throws(Throwable::class)
             override fun beforeHookedMethod(param: MethodHookParam) {
-                HLog.d(TAG,"aaa  101010 android.hardware.camera2.CaptureRequest.Builder)  method （build）")
+                HLog.d(TAG,"aaa  camera2 step5  android.hardware.camera2.CaptureRequest.Builder)  method （build）")
                 camera2Play()
             }
         })
