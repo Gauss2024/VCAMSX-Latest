@@ -37,7 +37,10 @@ class MainHook : IXposedHookLoadPackage {
         var data_buffer = byteArrayOf(0)
         var context: Context? = null
         var origin_preview_camera: Camera? = null
-        var fake_SurfaceTexture: SurfaceTexture? = null
+
+        var fakeSurfaceTexture: SurfaceTexture? = null
+        var fakeSurface: Surface? = null
+        var c1IsPlaying:Boolean = false
 
         var sessionConfiguration: SessionConfiguration? = null
         var outputConfiguration: OutputConfiguration? = null
@@ -97,58 +100,28 @@ class MainHook : IXposedHookLoadPackage {
             SurfaceTexture::class.java, object : XC_MethodHook() {
                 @Throws(Throwable::class)
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"aaa 222   findAndHookMethod,(android.hardware.Camera) method （setPreviewTexture）")
-                    if (param.args[0] == null) {
-                        return
+                    HLog.d(TAG,"aaa 222   findAndHookMethod,(android.hardware.Camera) method （setPreviewTexture） fakeSurfaceTexture=$fakeSurfaceTexture")
+                    if (fakeSurfaceTexture == null) {
+                        fakeSurfaceTexture = SurfaceTexture(10)
+                        fakeSurface = Surface(fakeSurfaceTexture)
                     }
-                    if (param.args[0] == fake_SurfaceTexture) {
-                        return
-                    }
-                    if (origin_preview_camera != null && origin_preview_camera == param.thisObject) {
-                        param.args[0] = fake_SurfaceTexture
-                        return
-                    }
-
-                    origin_preview_camera = param.thisObject as Camera
-                    original_c1_preview_SurfaceTexture = param.args[0] as SurfaceTexture
-
-                    fake_SurfaceTexture = if (fake_SurfaceTexture == null) {
-                        SurfaceTexture(10)
-                    } else {
-                        fake_SurfaceTexture!!.release()
-                        SurfaceTexture(10)
-                    }
-                    param.args[0] = fake_SurfaceTexture
+                    param.args[0] = fakeSurfaceTexture  // 替换为 FakeSurface
+                    HLog.d(TAG,"aaa 222   findAndHookMethod,(android.hardware.Camera) method （setPreviewTexture） fakeSurfaceTexture 替换成功")
                 }
             })
 
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "startPreview", object : XC_MethodHook() {
             override fun beforeHookedMethod(param: MethodHookParam?) {
-                HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview）")
-                c1_camera_play()
+                HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview）isPlaying=$c1IsPlaying")
+                //c1_camera_play()
+                if (!c1IsPlaying) {
+                    c1IsPlaying = true
+                    HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview） startVideoDecoding")
+                    startVideoDecoding()
+                }
             }
         })
 
-        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewCallbackWithBuffer",
-            PreviewCallback::class.java, object : XC_MethodHook() {
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"aaa 444 findAndHookMethod,(android.hardware.Camera)  method （setPreviewCallbackWithBuffer）")
-                    if(videoStatus?.isVideoEnable == false) return
-                    if (param.args[0] != null) {
-                        process_callback(param)
-                    }
-                }
-            })
-
-        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "addCallbackBuffer",
-            ByteArray::class.java, object : XC_MethodHook() {
-                override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"aaa 555 findAndHookMethod,(android.hardware.Camera)  method （addCallbackBuffer）")
-                    if (param.args[0] != null) {
-                        param.args[0] = ByteArray((param.args[0] as ByteArray).size)
-                    }
-                }
-            })
 
 
 
@@ -177,6 +150,22 @@ class MainHook : IXposedHookLoadPackage {
             })
     }
 
+    private fun startVideoDecoding() {
+
+        HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview） startVideoDecoding")
+        if (fakeSurface == null || context == null) return
+        HLog.d(TAG, "aaa 🔵 启动视频解码，绑定 FakeSurface")
+
+
+        hw_decode_obj?.stopDecode()
+        hw_decode_obj = VideoToFrames().apply {
+            setSaveFrames(OutputImageFormat.NV21)
+            setFakeSurface(fakeSurface!!)  // 绑定 FakeSurface
+        }
+        val videoPathUri = "content://com.wangyiheng.vcamsx.videoprovider"
+        hw_decode_obj?.decode(videoPathUri)
+    }
+
     private fun process_callback(param: MethodHookParam) {
         val preview_cb_class: Class<*> = param.args[0].javaClass
         XposedHelpers.findAndHookMethod(preview_cb_class, "onPreviewFrame",
@@ -185,38 +174,7 @@ class MainHook : IXposedHookLoadPackage {
                 @Throws(Throwable::class)
                 override fun beforeHookedMethod(paramd: MethodHookParam) {
                     HLog.d(TAG,"aaa 777 findAndHookMethod,"+preview_cb_class.name+")  method （onPreviewFrame）")
-                    val localcam = paramd.args[1] as Camera
-                    if (localcam ==  camera_onPreviewFrame) {
-                        HLog.d(TAG,"aaa 777 非首次")
-                        while ( data_buffer == null) {
-                            HLog.d(TAG,"aaa 777 非首次 data_buffer is null")
-                        }
-                        System.arraycopy(data_buffer, 0, paramd.args[0], 0, min(data_buffer.size.toDouble(), (paramd.args[0] as ByteArray).size.toDouble()).toInt())
-                    } else {
-                        HLog.d(TAG,"aaa 777 首次")
-                        camera_callback_calss = preview_cb_class
-                        camera_onPreviewFrame = paramd.args[1] as Camera
-                        val mwidth = camera_onPreviewFrame!!.getParameters().getPreviewSize().width
-                        val mhight = camera_onPreviewFrame!!.getParameters().getPreviewSize().height
-                        if ( hw_decode_obj != null) {
-                             hw_decode_obj!!.stopDecode()
-                        }
-                        Toast.makeText(context, """
-                                视频需要分辨率与摄像头完全相同
-                                宽：${mwidth}
-                                高：${mhight}
-                                """.trimIndent(), Toast.LENGTH_SHORT).show()
-                        hw_decode_obj = VideoToFrames()
-                        hw_decode_obj!!.setSaveFrames(OutputImageFormat.NV21)
 
-                        val videoUrl = "content://com.wangyiheng.vcamsx.videoprovider"
-                        val videoPathUri = Uri.parse(videoUrl)
-                        hw_decode_obj!!.decode( videoPathUri )
-                        while ( data_buffer == null) {
-                            HLog.d(TAG,"aaa 777 首次 data_buffer is null")
-                        }
-                        System.arraycopy(data_buffer, 0, paramd.args[0], 0, min(data_buffer.size.toDouble(), (paramd.args[0] as ByteArray).size.toDouble()).toInt())
-                    }
                 }
             })
     }

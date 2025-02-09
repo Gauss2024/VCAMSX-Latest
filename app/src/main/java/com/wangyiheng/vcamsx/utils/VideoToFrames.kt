@@ -1,5 +1,6 @@
 package com.wangyiheng.vcamsx.utils
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.graphics.*
 import android.media.*
@@ -31,6 +32,9 @@ class VideoToFrames : Runnable {
     private val COLOR_FormatI420 = 1
     private val COLOR_FormatNV21 = 2
     private val VERBOSE = false
+
+    private var fakeSurface: Surface? = null
+
     fun stopDecode() {
         stopDecode = true
     }
@@ -49,6 +53,9 @@ class VideoToFrames : Runnable {
         if(player_surface != null){
             play_surf = player_surface
         }
+    }
+    fun setFakeSurface(surface: Surface) {
+        fakeSurface = surface
     }
 
     fun decode(videoFilePath: Any) {
@@ -73,7 +80,7 @@ class VideoToFrames : Runnable {
     private fun videoDecode(videoPath: Any) {
         var extractor: MediaExtractor? = null
         var decoder: MediaCodec? = null
-
+        HLog.d(TAG,"aaa 000 000 videoDecode start ......")
         try {
             extractor = MediaExtractor().apply {
                 when (videoPath) {
@@ -82,6 +89,7 @@ class VideoToFrames : Runnable {
                     else -> throw IllegalArgumentException("Unsupported video path type")
                 }
             }
+            HLog.d(TAG,"aaa 000 111 videoDecode start ......")
             val trackIndex = selectTrack(extractor)
             if (trackIndex < 0) {
                 HLog.d(TAG,"aaa 000 No video track found in ${videoFilePath}")
@@ -98,6 +106,7 @@ class VideoToFrames : Runnable {
             } else {
                 HLog.d(TAG,"aaa 000 unable to set decode color format, color format type ${decodeColorFormat}  not supported")
             }
+
             decodeFramesToImage(decoder, extractor, mediaFormat)
             decoder.stop()
             while (!stopDecode) {
@@ -107,6 +116,7 @@ class VideoToFrames : Runnable {
             }
         } catch (e: Exception) {
             // Handle exceptions
+            HLog.d(TAG, "aaa ❌ 视频解码失败: ${e.message}")
         } finally {
             if(decoder != null) {
                 decoder.stop()
@@ -119,15 +129,133 @@ class VideoToFrames : Runnable {
             }
         }
     }
+
+//    private fun videoDecode(videoPath: Any) {
+//        var extractor: MediaExtractor? = null
+//        var decoder: MediaCodec? = null
+//
+//        try {
+//            HLog.d(TAG, "aaa 解码视频路径: $videoFilePath")
+//
+//            extractor = MediaExtractor().apply {
+//                when (videoPath) {
+//                    is String -> {
+//                        HLog.d(TAG, "aaa 使用字符串路径: $videoFilePath")
+//                        try {
+//                            context?.let {
+//                                extractor?.setDataSource(it, Uri.parse(videoPath), null)
+//                                HLog.d(TAG, "aaa ✅ 使用 `setDataSource(Context, Uri, null)` 成功加载视频")
+//                            } ?: HLog.d(TAG, "aaa ❌ `context` 为空，无法使用 `setDataSource(Context, Uri, null)`")
+//                        } catch (e: IOException) {
+//                            HLog.d(TAG, "aaa ❌ `setDataSource(Context, Uri, null)` 失败: ${e.message}")
+//                        }
+//
+//
+//                        val inputStream = context?.contentResolver?.openInputStream(Uri.parse(videoPath))
+//                        if (inputStream != null) {
+//                            HLog.d(TAG, "aaa ✅ `content://` 文件可以被打开")
+//                            inputStream.close()
+//                        } else {
+//                            HLog.d(TAG, "aaa ❌ `content://` 文件无法打开")
+//                        }
+//
+//
+//
+//                    }
+//                    is Uri -> {
+//                        HLog.d(TAG, "aaa 使用 `Uri`: $videoFilePath")
+//                        val resolver = context?.contentResolver
+//                        val fd = resolver?.openFileDescriptor(videoPath, "r")?.fileDescriptor
+//                        if (fd != null) {
+//                            extractor?.setDataSource(fd)
+//                        } else {
+//                            HLog.d(TAG, "aaa 无法获取文件描述符")
+//                        }
+//
+//                    }
+//                    else -> {
+//                        HLog.d(TAG, "aaa 错误: 不支持的视频路径类型")
+//                        throw IllegalArgumentException("Unsupported video path type")
+//                    }
+//                }
+//            }
+//
+//
+//            val trackIndex = selectTrack(extractor)
+//            HLog.d(TAG, "aaa trackIndex=$trackIndex")
+//            if (trackIndex < 0) return
+//            extractor.selectTrack(trackIndex)
+//
+//
+//            val mediaFormat = extractor.getTrackFormat(trackIndex)
+//            val mime = mediaFormat.getString(MediaFormat.KEY_MIME)
+//            HLog.d(TAG, "aaa mime=$mime")
+//
+//            decoder = MediaCodec.createDecoderByType(mime!!)
+//            mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, decodeColorFormat)
+//            HLog.d(TAG, "aaa decoder=$decoder")
+////            val rotation = mediaFormat.getInteger(MediaFormat.KEY_ROTATION, 0)
+////            HLog.d(TAG, "aaa 视频旋转角度: $rotation°")
+//
+//            if (fakeSurface == null) {
+//                HLog.d(TAG, "aaa ⚠️ FakeSurface 为空，无法解码")
+//                return
+//            }
+//
+//            decoder.configure(mediaFormat, fakeSurface, null, 0)
+//            decoder.start()
+//            HLog.d(TAG, "aaa start    。。。。。。。。")
+//            var sawInputEOS = false
+//            var sawOutputEOS = false
+//            val info = MediaCodec.BufferInfo()
+//            HLog.d(TAG, "aaa start    。。。。。。。。info=$info")
+//            while (!sawOutputEOS && !stopDecode) {
+//                if (!sawInputEOS) {
+//                    val inputBufferId = decoder.dequeueInputBuffer(DEFAULT_TIMEOUT_US)
+//                    if (inputBufferId >= 0) {
+//                        val inputBuffer = decoder.getInputBuffer(inputBufferId)
+//                        val sampleSize = extractor.readSampleData(inputBuffer!!, 0)
+//                        if (sampleSize < 0) {
+//                            decoder.queueInputBuffer(inputBufferId, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+//                            sawInputEOS = true
+//                        } else {
+//                            val presentationTimeUs = extractor.sampleTime
+//                            decoder.queueInputBuffer(inputBufferId, 0, sampleSize, presentationTimeUs, 0)
+//                            extractor.advance()
+//                        }
+//                    }
+//                }
+//
+//                val outputBufferId = decoder.dequeueOutputBuffer(info, DEFAULT_TIMEOUT_US)
+//                if (outputBufferId >= 0) {
+//                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawOutputEOS = true
+//                    decoder.releaseOutputBuffer(outputBufferId, true)
+//                }
+//            }
+//        } catch (e: Exception) {
+//            HLog.d(TAG, "aaa ❌ 视频解码失败: ${e.message}")
+//        } finally {
+//            decoder?.stop()
+//            decoder?.release()
+//            extractor?.release()
+//        }
+//    }
+
     private fun selectTrack(extractor: MediaExtractor): Int {
         val numTracks = extractor.trackCount
+        HLog.d(TAG, "aaa 🎬 `MediaExtractor` 发现轨道数量: $numTracks")
+
         for (i in 0 until numTracks) {
             val format = extractor.getTrackFormat(i)
             val mime = format.getString(MediaFormat.KEY_MIME)
+            HLog.d(TAG, "aaa 🎬 轨道 $i -> MIME 类型: $mime")
             if (mime!!.startsWith("video/")) {
+                HLog.d(TAG, "aaa ✅ 找到视频轨道: $i")
                 return i
             }
         }
+
+        HLog.d(TAG, "aaa ❌ 没有找到 `video/` 轨道，视频可能损坏或格式不受支持")
         return -1
     }
 
