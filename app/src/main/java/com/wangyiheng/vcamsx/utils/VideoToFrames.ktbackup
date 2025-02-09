@@ -1,0 +1,82 @@
+package com.wangyiheng.vcamsx.utils
+
+import android.graphics.*
+import android.media.*
+import android.view.Surface
+import cn.dianbobo.dbb.util.HLog
+import com.wangyiheng.vcamsx.MainHook.Companion.TAG
+import java.io.IOException
+import java.util.concurrent.LinkedBlockingQueue
+
+class VideoToFrames : Runnable {
+
+    private var stopDecode = false
+
+    private var outputImageFormat: OutputImageFormat? = null
+    private var videoFilePath: Any? = null
+    private var childThread: Thread? = null
+    private var throwable: Throwable? = null // 定义 throwable 变量
+    private val decodeColorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
+    private var play_surf: Surface? = null
+    private val DEFAULT_TIMEOUT_US: Long = 10000
+    private val callback: Callback? = null
+    private val mQueue: LinkedBlockingQueue<ByteArray>? = null
+    private val COLOR_FormatI420 = 1
+    private val COLOR_FormatNV21 = 2
+    private val VERBOSE = false
+
+    private var fakeSurface: Surface? = null
+
+    fun stopDecode() {
+        stopDecode = true
+    }
+
+    interface Callback {
+        fun onFinishDecode()
+        fun onDecodeFrame(index: Int)
+    }
+
+    @Throws(IOException::class)
+    fun setSaveFrames(imageFormat: OutputImageFormat) {
+        outputImageFormat = imageFormat
+    }
+
+    fun set_surface(player_surface:Surface){
+        if(player_surface != null){
+            play_surf = player_surface
+        }
+    }
+
+    fun decode(videoFilePath: Any) {
+        this.videoFilePath = videoFilePath
+        if (childThread == null) {
+            childThread = Thread(this, "decode").apply {
+                start()
+            }
+            throwable?.let { throw it }
+        }
+    }
+
+    override fun run() {
+        try {
+            HLog.d(TAG,"aaa 000 ------开始解码------")
+            videoFilePath?.let {
+                //videoDecodeOld(it)
+            }
+        } catch (t: Throwable) {
+            throwable = t
+        }
+    }
+
+
+}
+
+
+enum class OutputImageFormat(val friendlyName: String) {
+    I420("I420"),
+    NV21("NV21"),
+    JPEG("JPEG");
+
+    override fun toString() = friendlyName
+}
+

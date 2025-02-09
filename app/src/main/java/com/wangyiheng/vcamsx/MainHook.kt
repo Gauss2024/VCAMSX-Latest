@@ -1,60 +1,48 @@
 package com.wangyiheng.vcamsx
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.graphics.SurfaceTexture
-import android.hardware.Camera
-import android.hardware.Camera.PreviewCallback
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
-import android.net.Uri
 import android.os.Build
 import android.os.Handler
+import android.os.Looper
 import android.view.Surface
-import android.widget.Toast
 import cn.dianbobo.dbb.util.HLog
-import com.wangyiheng.vcamsx.utils.InfoProcesser.videoStatus
-import com.wangyiheng.vcamsx.utils.OutputImageFormat
-import com.wangyiheng.vcamsx.utils.VideoPlayer.c1_camera_play
+import com.wangyiheng.vcamsx.utils.VideoDecoder
 import com.wangyiheng.vcamsx.utils.VideoPlayer.ijkMediaPlayer
 import com.wangyiheng.vcamsx.utils.VideoPlayer.camera2Play
 import com.wangyiheng.vcamsx.utils.VideoPlayer.initializeTheStateAsWellAsThePlayer
-import com.wangyiheng.vcamsx.utils.VideoToFrames
 import de.robv.android.xposed.*
-import de.robv.android.xposed.XC_MethodHook.MethodHookParam
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import kotlinx.coroutines.*
 import java.util.*
-import kotlin.math.min
+import java.util.concurrent.atomic.AtomicBoolean
 
 
 class MainHook : IXposedHookLoadPackage {
     companion object {
         val TAG = "vcamsx"
-        @Volatile
-        var data_buffer = byteArrayOf(0)
-        var context: Context? = null
-        var origin_preview_camera: Camera? = null
+        @Volatile var context: Context? = null
+        private var fakeSurfaceTexture: SurfaceTexture? = null
+        private var fakeSurface: Surface? = null
+        private val isDecoding = AtomicBoolean(false)
+        private val mainHandler = Handler(Looper.getMainLooper())
 
-        var fakeSurfaceTexture: SurfaceTexture? = null
-        var fakeSurface: Surface? = null
-        var c1IsPlaying:Boolean = false
 
         var sessionConfiguration: SessionConfiguration? = null
         var outputConfiguration: OutputConfiguration? = null
         var fake_sessionConfiguration: SessionConfiguration? = null
 
         var original_preview_Surface: Surface? = null
-        var original_c1_preview_SurfaceTexture:SurfaceTexture? = null
         var isPlaying:Boolean = false
         var needRecreate: Boolean = false
         var c2VirtualSurfaceTexture: SurfaceTexture? = null
         var c2_reader_Surfcae: Surface? = null
-        var camera_onPreviewFrame: Camera? = null
-        var camera_callback_calss: Class<*>? = null
-        var hw_decode_obj: VideoToFrames? = null
 
 
     }
@@ -81,6 +69,9 @@ class MainHook : IXposedHookLoadPackage {
                             if (context != applicationContext) {
                                 try {
                                     context = applicationContext
+
+                                    initializeFakeSurface()
+
                                     if (!isPlaying) {
                                         isPlaying = true
                                         ijkMediaPlayer ?: initializeTheStateAsWellAsThePlayer()
@@ -98,26 +89,30 @@ class MainHook : IXposedHookLoadPackage {
         // 支持bilibili摄像头替换
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewTexture",
             SurfaceTexture::class.java, object : XC_MethodHook() {
+                @SuppressLint("NewApi")
                 @Throws(Throwable::class)
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     HLog.d(TAG,"aaa 222   findAndHookMethod,(android.hardware.Camera) method （setPreviewTexture） fakeSurfaceTexture=$fakeSurfaceTexture")
                     if (fakeSurfaceTexture == null) {
-                        fakeSurfaceTexture = SurfaceTexture(10)
-                        fakeSurface = Surface(fakeSurfaceTexture)
+                        Handler(Looper.getMainLooper()).post {
+                            if (fakeSurfaceTexture?.isReleased != false) {
+                                initializeFakeSurface()
+                            }
+                            param.args[0] = fakeSurfaceTexture
+
+                        }
                     }
-                    param.args[0] = fakeSurfaceTexture  // 替换为 FakeSurface
                     HLog.d(TAG,"aaa 222   findAndHookMethod,(android.hardware.Camera) method （setPreviewTexture） fakeSurfaceTexture 替换成功")
                 }
             })
 
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "startPreview", object : XC_MethodHook() {
             override fun beforeHookedMethod(param: MethodHookParam?) {
-                HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview）isPlaying=$c1IsPlaying")
-                //c1_camera_play()
-                if (!c1IsPlaying) {
-                    c1IsPlaying = true
-                    HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview） startVideoDecoding")
-                    startVideoDecoding()
+                HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview） ")
+                if (isDecoding.compareAndSet(false, true)) {
+                    GlobalScope.launch(Dispatchers.IO) {
+                        VideoDecoder.startDecoding(context, fakeSurface)
+                    }
                 }
             }
         })
@@ -150,33 +145,25 @@ class MainHook : IXposedHookLoadPackage {
             })
     }
 
-    private fun startVideoDecoding() {
 
-        HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview） startVideoDecoding")
-        if (fakeSurface == null || context == null) return
-        HLog.d(TAG, "aaa 🔵 启动视频解码，绑定 FakeSurface")
-
-
-        hw_decode_obj?.stopDecode()
-        hw_decode_obj = VideoToFrames().apply {
-            setSaveFrames(OutputImageFormat.NV21)
-            setFakeSurface(fakeSurface!!)  // 绑定 FakeSurface
+    private fun initializeFakeSurface() {
+        mainHandler.post {
+            releaseFakeSurface()
+            fakeSurfaceTexture = SurfaceTexture(0).apply {
+                setDefaultBufferSize(1920, 1080)
+                detachFromGLContext()
+            }
+            fakeSurface = Surface(fakeSurfaceTexture)
+            HLog.d(TAG, "FakeSurface initialized")
         }
-        val videoPathUri = "content://com.wangyiheng.vcamsx.videoprovider"
-        hw_decode_obj?.decode(videoPathUri)
     }
 
-    private fun process_callback(param: MethodHookParam) {
-        val preview_cb_class: Class<*> = param.args[0].javaClass
-        XposedHelpers.findAndHookMethod(preview_cb_class, "onPreviewFrame",
-            ByteArray::class.java,
-            Camera::class.java, object : XC_MethodHook() {
-                @Throws(Throwable::class)
-                override fun beforeHookedMethod(paramd: MethodHookParam) {
-                    HLog.d(TAG,"aaa 777 findAndHookMethod,"+preview_cb_class.name+")  method （onPreviewFrame）")
-
-                }
-            })
+    private fun releaseFakeSurface() {
+        fakeSurface?.release()
+        fakeSurfaceTexture?.release()
+        fakeSurface = null
+        fakeSurfaceTexture = null
+        HLog.d(TAG, "FakeSurface released")
     }
 
 
