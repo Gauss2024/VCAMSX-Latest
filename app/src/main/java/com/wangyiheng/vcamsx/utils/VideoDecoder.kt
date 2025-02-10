@@ -33,6 +33,7 @@ object VideoDecoder {
         var decoder: MediaCodec? = null
 
         try {
+
             extractor = MediaExtractor().apply {
                 setDataSource(context, Uri.parse("content://com.wangyiheng.vcamsx.videoprovider"), null)
             }
