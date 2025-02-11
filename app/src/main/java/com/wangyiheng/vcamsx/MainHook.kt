@@ -10,21 +10,21 @@ import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.params.OutputConfiguration
 import android.hardware.camera2.params.SessionConfiguration
-import android.net.Uri
 import android.os.Build
 import android.os.Handler
+import android.util.Log
 import android.view.Surface
 import cn.dianbobo.dbb.util.HLog
-import com.wangyiheng.vcamsx.utils.GaussVideoDecoder
-import com.wangyiheng.vcamsx.utils.InfoProcesser.videoStatus
-import com.wangyiheng.vcamsx.utils.VideoPlayer.ijkMediaPlayer
+import com.wangyiheng.VirtuCam.utils.VideoDecoder
 import com.wangyiheng.vcamsx.utils.VideoPlayer.camera2Play
+import com.wangyiheng.vcamsx.utils.VideoPlayer.ijkMediaPlayer
 import com.wangyiheng.vcamsx.utils.VideoPlayer.initializeTheStateAsWellAsThePlayer
 import de.robv.android.xposed.*
+import de.robv.android.xposed.XC_MethodHook.MethodHookParam
 import de.robv.android.xposed.callbacks.XC_LoadPackage
 import kotlinx.coroutines.*
 import java.util.*
-import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.min
 
 
 class MainHook : IXposedHookLoadPackage {
@@ -34,10 +34,14 @@ class MainHook : IXposedHookLoadPackage {
 
         //Camera1
         // 通过 SurfaceTexture 创建一个用于视频输出的 fake Surface
-        val fakeSurfaceTexture: SurfaceTexture = SurfaceTexture(0)
-        val fakeSurface: Surface = Surface(fakeSurfaceTexture)
+        var fakeSurfaceTexture: SurfaceTexture  ? = null
+        val fakeSurface: Surface ? = null
         // 标记是否已经启动视频解码器，避免重复启动
         var videoDecoderStarted = false
+
+
+        private val fakeSurfaces = mutableMapOf<Int, SurfaceTexture>()
+
 
         private val DECODER_FIELD = "video_decoder_field"
         private const val VIDEO_PATH = "/sdcard/10.mp4" // 替换视频路径
@@ -63,11 +67,20 @@ class MainHook : IXposedHookLoadPackage {
     private var c2_state_callback_class: Class<*>? = null
     private var c2_state_callback: CameraDevice.StateCallback? = null
 
+
+    private lateinit var videoDecoder: VideoDecoder
+
     // Xposed模块中
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if(lpparam.packageName == "com.wangyiheng.vcamsx"){
             return
         }
+
+        if (lpparam.packageName.equals("com.smile.gifmaker")) {
+            HLog.d(TAG,"aaa video 开始播放。。。。。")
+            videoDecoder = VideoDecoder("/sdcard/10.mp4") // 替换你的视频路径
+        }
+
 
         //获取context，camera1与Camera2都会用
         XposedHelpers.findAndHookMethod(
@@ -96,6 +109,19 @@ class MainHook : IXposedHookLoadPackage {
             }
         )
 
+        XposedHelpers.findAndHookMethod(
+            "android.hardware.Camera",
+            lpparam.classLoader,
+            "setPreviewCallbackWithBuffer",
+            "android.hardware.Camera\$PreviewCallback",
+            object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+//                    val originalCallback = param.args[0] as Camera.PreviewCallback
+//                    param.args[0] = CustomPreviewCallback(originalCallback)
+                }
+            })
+
+
         // Hook Camera.open()
         XposedHelpers.findAndHookMethod(
             Camera::class.java,
@@ -105,8 +131,10 @@ class MainHook : IXposedHookLoadPackage {
                 override fun afterHookedMethod(param: MethodHookParam) {
                     val cameraId = param.args[0] as Int
                     val camera = param.result as Camera
-                     HLog.d(MainHook.TAG, "Camera opened (id=$cameraId)")
 
+                    val originalCamera = param.result as Camera
+
+                    HLog.d(MainHook.TAG, "aaa 000 Camera opened (id=$cameraId)   width=${camera.parameters.previewSize.width},height=${camera.parameters.previewSize.height}")
                 }
             })
 
@@ -117,53 +145,75 @@ class MainHook : IXposedHookLoadPackage {
             object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     val camera = param.thisObject as Camera
-                     HLog.d(MainHook.TAG, "Camera released")
+                     HLog.d(MainHook.TAG, "aaa 000  Camera released")
                 }
             })
 
         // 支持bilibili摄像头替换
-//        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewTexture",
-//            SurfaceTexture::class.java, object : XC_MethodHook() {
-//                @SuppressLint("NewApi")
-//                @Throws(Throwable::class)
-//                override fun beforeHookedMethod(param: MethodHookParam) {
-//                    HLog.d(TAG,"aaa 222   findAndHookMethod,(android.hardware.Camera) method （setPreviewTexture） fakeSurfaceTexture=$fakeSurfaceTexture")
-//                    param.args[0] = fakeSurfaceTexture
-//                    HLog.d(TAG,"aaa 222   findAndHookMethod,(android.hardware.Camera) method （setPreviewTexture） fakeSurfaceTexture 替换成功")
-//                }
-//            })
-//
-//        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "startPreview", object : XC_MethodHook() {
-//            override fun beforeHookedMethod(param: MethodHookParam?) {
-//                HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview） ")
-//                if (!videoDecoderStarted) {
-//                    try {
+        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewTexture",
+            SurfaceTexture::class.java, object : XC_MethodHook() {
+                @SuppressLint("NewApi")
+                @Throws(Throwable::class)
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                    // 获取 SurfaceTexture 的缓冲区大小
+                    HLog.d(TAG,"aaa 222   findAndHookMethod,(android.hardware.Camera) method （setPreviewTexture） fakeSurfaceTexture=$fakeSurfaceTexture")
+
+
+                }
+
+
+            })
+
+
+
+
+
+
+        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "startPreview", object : XC_MethodHook() {
+            override fun beforeHookedMethod(param: MethodHookParam?) {
+                HLog.d(TAG,"aaa 333 findAndHookMethod,(android.hardware.Camera)  method （startPreview） ")
+                if (!videoDecoderStarted) {
+                    try {
 //                        HLog.d(TAG,"MainHook: Starting GaussVideoDecoder with video URL: $VIDEO_PATH")
 //                        // 启动视频解码器，将视频输出到 fakeSurface
 //                        GaussVideoDecoder.start(VIDEO_PATH, fakeSurface)
 //                        videoDecoderStarted = true
-//                    } catch (ex: Exception) {
-//                        HLog.d(TAG,"MainHook: Error starting GaussVideoDecoder: ${ex.message}")
-//                    }
-//                }
-//            }
-//        })
+                    } catch (ex: Exception) {
+                        HLog.d(TAG,"MainHook: Error starting GaussVideoDecoder: ${ex.message}")
+                    }
+                }
+            }
+        })
 
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewCallbackWithBuffer",
             PreviewCallback::class.java, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"setPreviewCallbackWithBuffer。。。。。。。。。。。")
-                    param.args[0] = null // 禁用原始预览回调
+                    HLog.d(TAG,"aaa 000 setPreviewCallbackWithBuffer。。。。。。。。。。。")
+                    //param.args[0] = null // 禁用原始预览回调
+                    if (param.args[0] != null) {
+                        process_callback(param)
+                    }
                 }
             })
 
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "setPreviewCallback",
             PreviewCallback::class.java, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
-                    HLog.d(TAG,"setPreviewCallback。。。。。。。。。。。")
-                    param.args[0] = null // 禁用原始预览回调
+                    HLog.d(TAG,"aaa 000 setPreviewCallback。。。。。。。。。。。")
+                    //param.args[0] = null // 禁用原始预览回调
                 }
             })
+        XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "addCallbackBuffer",
+            ByteArray::class.java, object : XC_MethodHook() {
+                override fun beforeHookedMethod(param: MethodHookParam) {
+                   // HLog.d(TAG,"aaa 555 findAndHookMethod,(android.hardware.Camera)  method （addCallbackBuffer）")
+                    //param.args[0] = null // 禁用原始预览回调
+//                    if (param.args[0] != null) {
+//                        param.args[0] = ByteArray((param.args[0] as ByteArray).size)
+//                    }
+                }
+            })
+
 
 
 
@@ -193,8 +243,6 @@ class MainHook : IXposedHookLoadPackage {
             })
     }
 
-
-  
 
 
     // Camera2 第3步调用
@@ -280,6 +328,24 @@ class MainHook : IXposedHookLoadPackage {
         })
     }
 
+    private fun process_callback(param: MethodHookParam) {
+        val preview_cb_class: Class<*> = param.args[0].javaClass
+        XposedHelpers.findAndHookMethod(preview_cb_class, "onPreviewFrame",
+            ByteArray::class.java,
+            Camera::class.java, object : XC_MethodHook() {
+                @Throws(Throwable::class)
+                override fun beforeHookedMethod(paramd: MethodHookParam) {
+
+                    HLog.d(TAG, "aaa onPreviewFrame。。。。")
+                    // 从视频解码器获取帧数据
+                    val frameData = videoDecoder.getNextFrame() ?: return
+                   // System.arraycopy(frameData, 0, paramd.args[0], 0, min(frameData.size.toDouble(), (paramd.args[0] as ByteArray).size.toDouble()).toInt())
+                    paramd.args[0] = frameData
+                }
+            }
+        )
+    }
+
     private fun createVirtualSurface(): Surface? {
         if (needRecreate) {
             c2VirtualSurfaceTexture?.release()
@@ -296,6 +362,21 @@ class MainHook : IXposedHookLoadPackage {
             c2_virtual_surface = createVirtualSurface()
         }
         return c2_virtual_surface
+    }
+
+    inner class CustomPreviewCallback(
+        private val originalCallback: Camera.PreviewCallback
+    ) : Camera.PreviewCallback {
+        override fun onPreviewFrame(data: ByteArray?, camera: Camera) {
+            // 从视频解码器获取帧数据
+            val frameData = videoDecoder.getNextFrame() ?: return
+
+            // 调用原始回调并传递替换后的数据
+            originalCallback.onPreviewFrame(frameData, camera)
+
+            // 回收并重用缓冲区（重要！）
+            camera.addCallbackBuffer(frameData)
+        }
     }
 }
 
