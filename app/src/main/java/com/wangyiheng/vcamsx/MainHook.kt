@@ -178,6 +178,7 @@ class MainHook : IXposedHookLoadPackage {
 //                        // 启动视频解码器，将视频输出到 fakeSurface
 //                        GaussVideoDecoder.start(VIDEO_PATH, fakeSurface)
 //                        videoDecoderStarted = true
+                        //应该在这个地方播放声音
                     } catch (ex: Exception) {
                         HLog.d(TAG,"MainHook: Error starting GaussVideoDecoder: ${ex.message}")
                     }
@@ -189,6 +190,7 @@ class MainHook : IXposedHookLoadPackage {
             PreviewCallback::class.java, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
                     HLog.d(TAG,"aaa 000 setPreviewCallbackWithBuffer。。。。。。。。。。。")
+                    //替换摄像头数据
                     //param.args[0] = null // 禁用原始预览回调
                     if (param.args[0] != null) {
                         process_callback(param)
@@ -206,6 +208,7 @@ class MainHook : IXposedHookLoadPackage {
         XposedHelpers.findAndHookMethod("android.hardware.Camera", lpparam.classLoader, "addCallbackBuffer",
             ByteArray::class.java, object : XC_MethodHook() {
                 override fun beforeHookedMethod(param: MethodHookParam) {
+                    //这里干什么呢？
                    // HLog.d(TAG,"aaa 555 findAndHookMethod,(android.hardware.Camera)  method （addCallbackBuffer）")
                     //param.args[0] = null // 禁用原始预览回调
 //                    if (param.args[0] != null) {
@@ -337,7 +340,7 @@ class MainHook : IXposedHookLoadPackage {
                 override fun beforeHookedMethod(paramd: MethodHookParam) {
 
                     HLog.d(TAG, "aaa onPreviewFrame。。。。")
-                    // 从视频解码器获取帧数据
+                    // 从视频解码器获取帧数据，持续消费？
                     val frameData = videoDecoder.getNextFrame() ?: return
                    // System.arraycopy(frameData, 0, paramd.args[0], 0, min(frameData.size.toDouble(), (paramd.args[0] as ByteArray).size.toDouble()).toInt())
                     paramd.args[0] = frameData
