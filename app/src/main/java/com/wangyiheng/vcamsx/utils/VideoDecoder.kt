@@ -1,5 +1,7 @@
 package com.wangyiheng.VirtuCam.utils
 
+import android.graphics.ImageFormat
+import android.media.Image
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaExtractor
@@ -7,6 +9,7 @@ import android.media.MediaFormat
 import cn.dianbobo.dbb.util.HLog
 import com.wangyiheng.vcamsx.MainHook
 import com.wangyiheng.vcamsx.MainHook.Companion.TAG
+import com.wangyiheng.vcamsx.utils.OutputImageFormat
 
 class VideoDecoder(videoPath: String) {
     private val extractor = MediaExtractor()
@@ -77,12 +80,23 @@ class VideoDecoder(videoPath: String) {
                     frameInterval = (bufferInfo.presentationTimeUs / 1000).toLong()
                     lastFrameTime = currentTime
 
-                    val outputBuffer = decoder.getOutputBuffer(outputBufferId)
-                    val frameData = ByteArray(outputBuffer!!.remaining())
-                    outputBuffer.get(frameData)
-                    decoder.releaseOutputBuffer(outputBufferId, false)
+                    //val outputBuffer = decoder.getOutputBuffer(outputBufferId)
+//                    val frameData = ByteArray(outputBuffer!!.remaining())
+//                    outputBuffer.get(frameData)
+//                    decoder.releaseOutputBuffer(outputBufferId, false)
+//                    HLog.d(MainHook.TAG, "aaa 000 解码成功，开始返回。。。。")
+//                    return frameData
+                    val outputBuffer =decoder.getOutputImage(outputBufferId)
+//                    val buffer = outputBuffer!!.planes[0].buffer
+//                    val frameData = ByteArray(buffer.remaining())
+//                    buffer.get(frameData)
+
+       //             decoder.releaseOutputBuffer(outputBufferId, false)
+//                    outputBuffer.close()
                     HLog.d(MainHook.TAG, "aaa 000 解码成功，开始返回。。。。")
-                    return frameData
+                    return processFrame(outputBuffer!!)
+
+
                 }
                 outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                     // 处理格式变化
@@ -94,5 +108,51 @@ class VideoDecoder(videoPath: String) {
         decoder.stop()
         decoder.release()
         extractor.release()
+    }
+
+    fun processFrame(image: Image, targetFormat: Int = ImageFormat.NV21): ByteArray {
+        val planes = image.planes
+        val width = image.width
+        val height = image.height
+
+        // 创建包含YUV数据的ByteArray
+        val yBuffer = planes[0].buffer
+        val uBuffer = planes[1].buffer
+        val vBuffer = planes[2].buffer
+
+        val ySize = yBuffer.remaining()
+        val uSize = uBuffer.remaining()
+        val vSize = vBuffer.remaining()
+
+        val nv21 = ByteArray(ySize + uSize + vSize)
+
+        // 处理Y分量
+        yBuffer.get(nv21,  0, ySize)
+
+        // 处理UV分量（考虑stride和pixelStride）
+        val uvPixelStride = planes[1].pixelStride
+        val uvRowStride = planes[1].rowStride
+        val uvBuffer = planes[1].buffer
+
+        when (targetFormat) {
+            ImageFormat.NV21 -> {
+                // NV21格式排列
+                var offset = ySize
+                for (row in 0 until height / 2) {
+                    for (col in 0 until width / 2) {
+                        val uPos = row * uvRowStride + col * uvPixelStride
+                        nv21[offset++] = uvBuffer.get(uPos)
+                        nv21[offset++] = planes[2].buffer.get(row  * planes[2].rowStride + col * planes[2].pixelStride)
+                    }
+                }
+            }
+            ImageFormat.YUV_420_888 -> {
+                // 原生YUV420_888格式
+                uBuffer.get(nv21,  ySize, uSize)
+                vBuffer.get(nv21,  ySize + uSize, vSize)
+            }
+        }
+
+        return nv21
     }
 }

@@ -8,7 +8,11 @@ import android.widget.Toast
 import cn.dianbobo.dbb.util.HLog
 import com.wangyiheng.vcamsx.MainHook
 import com.wangyiheng.vcamsx.MainHook.Companion.TAG
+import com.wangyiheng.vcamsx.MainHook.Companion.c2_reader_Surfcae
 import com.wangyiheng.vcamsx.MainHook.Companion.context
+import com.wangyiheng.vcamsx.MainHook.Companion.oriHolder
+import com.wangyiheng.vcamsx.MainHook.Companion.original_c1_preview_SurfaceTexture
+import com.wangyiheng.vcamsx.MainHook.Companion.original_c1_preview_SurfaceTexture_value
 import com.wangyiheng.vcamsx.MainHook.Companion.original_preview_Surface
 import com.wangyiheng.vcamsx.utils.InfoProcesser.videoStatus
 import tv.danmaku.ijk.media.player.IjkMediaPlayer
@@ -17,8 +21,11 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 object VideoPlayer {
+    var c2_hw_decode_obj: VideoToFrames? = null
     var ijkMediaPlayer: IjkMediaPlayer? = null
     var mediaPlayer: MediaPlayer? = null
+    var c3_player: MediaPlayer? = null
+    var copyReaderSurface:Surface? = null
     var currentRunningSurface:Surface? = null
     private val scheduledExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
     init {
@@ -74,7 +81,7 @@ object VideoPlayer {
             setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "start-on-prepared", 0)
             setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec_mpeg4", 1)
 //            setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "analyzemaxduration", 100L)
-             setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "analyzemaxduration", 5000L)
+            setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "analyzemaxduration", 5000L)
             setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "probesize", 2048L)
 //            setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "probesize", 1024L)
             setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "flush_packets", 1L)
@@ -132,7 +139,6 @@ object VideoPlayer {
     // 将surface传入进行播放
     private fun handleMediaPlayer(surface: Surface) {
         try {
-            HLog.d(TAG,"aaa  handleMediaPlayer start ......")
             // 数据初始化
             InfoProcesser.initStatus()
 
@@ -166,7 +172,6 @@ object VideoPlayer {
             }
         } catch (e: Exception) {
             // 这里可以添加更详细的异常处理或日志记录
-            HLog.d(MainHook.TAG,"aaa 000 handleMediaPlayer error=${e.message}")
             logError("MediaPlayer Error", e)
         }
     }
@@ -186,15 +191,78 @@ object VideoPlayer {
 
     fun camera2Play() {
         // 带name的surface
-        //  // Camera2 第6步调用
         original_preview_Surface?.let { surface ->
             handleMediaPlayer(surface)
-            HLog.d(MainHook.TAG,"aaa 000 camera2 step6 camera2Play handleMediaPlayer(surface) ")
         }
 
+        // name=null的surface
+        c2_reader_Surfcae?.let { surface ->
+            c2_reader_play(surface)
+        }
     }
 
+    fun c1_camera_play() {
+        HLog.d(TAG,"aaa c1_camera_play  start.....")
+        if (original_c1_preview_SurfaceTexture != null) {
+            original_preview_Surface = Surface(original_c1_preview_SurfaceTexture)
+            if(original_preview_Surface!!.isValid == true){
+                HLog.d(TAG,"aaa c1_camera_play..1111...original_preview_Surface=$original_preview_Surface original_c1_preview_SurfaceTexture=$original_c1_preview_SurfaceTexture")
+                var currentTextureValue =getSurefaceTextureNativeValue(original_c1_preview_SurfaceTexture!!)
+                HLog.d(TAG,"aaa 0000  在c1_camera_play中   currentTextureValue=$currentTextureValue，original_c1_preview_SurfaceTexture_value=$original_c1_preview_SurfaceTexture_value")
+                handleMediaPlayer(original_preview_Surface!!)
+            }
+        }
 
+        if(oriHolder?.surface != null){
+            original_preview_Surface = oriHolder?.surface
+            if(original_preview_Surface!!.isValid == true){
+                HLog.d(TAG,"aaa c1_camera_play..1111...original_preview_Surface=$original_preview_Surface oriHolder=$oriHolder")
+                handleMediaPlayer(original_preview_Surface!!)
+            }
+        }
 
+        c2_reader_Surfcae?.let {
+            surface ->{
+                HLog.d(TAG,"aaa c1_camera_play..1111...c2_reader_Surfcae=$c2_reader_Surfcae surface=$surface")
+                c2_reader_play(surface)
+            }
+        }
+    }
 
-}
+    fun c2_reader_play(c2_reader_Surfcae:Surface){
+        if(c2_reader_Surfcae == copyReaderSurface){
+            return
+        }
+
+        copyReaderSurface = c2_reader_Surfcae
+
+        if(c2_hw_decode_obj != null){
+            c2_hw_decode_obj!!.stopDecode()
+            c2_hw_decode_obj = null
+        }
+
+        c2_hw_decode_obj = VideoToFrames()
+        try {
+            val videoUrl = "content://com.wangyiheng.vcamsx.videoprovider"
+            val videoPathUri = Uri.parse(videoUrl)
+            c2_hw_decode_obj!!.setSaveFrames(OutputImageFormat.NV21)
+            c2_hw_decode_obj!!.set_surface(c2_reader_Surfcae)
+            c2_hw_decode_obj!!.decode(videoPathUri)
+        }catch (e:Exception){
+            Log.d("dbb",e.toString())
+        }
+    }
+    private fun getSurefaceTextureNativeValue(analyObj: Any): Long {
+        try {
+            val analyClass = analyObj.javaClass
+            val fieldsByName = analyClass.declaredFields.filter  { it.name  == "mSurfaceTexture" }
+            fieldsByName.forEach  {
+                    field ->
+                field.isAccessible = true
+                return field.get(analyObj) as Long
+            }
+        } catch (e: Exception) {
+            HLog.d(MainHook.TAG,"分析回调失败: ${e.message}")
+        }
+        return 0
+    }}

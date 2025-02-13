@@ -1,11 +1,13 @@
 package com.wangyiheng.vcamsx.utils
 
 import android.content.ContentValues
+import android.content.ContentValues.TAG
 import android.graphics.*
 import android.media.*
 import android.net.Uri
 import android.util.Log
 import android.view.Surface
+import cn.dianbobo.dbb.util.HLog
 import com.wangyiheng.vcamsx.MainHook
 import com.wangyiheng.vcamsx.MainHook.Companion.context
 import de.robv.android.xposed.XposedBridge
@@ -62,7 +64,7 @@ class VideoToFrames : Runnable {
 
     override fun run() {
         try {
-            Log.d("vcamsxtoast","------开始解码------")
+            HLog.d(MainHook.TAG,"------开始解码------")
             videoFilePath?.let { videoDecode(it) }
         } catch (t: Throwable) {
             throwable = t
@@ -83,7 +85,7 @@ class VideoToFrames : Runnable {
             }
             val trackIndex = selectTrack(extractor)
             if (trackIndex < 0) {
-                XposedBridge.log("&#8203;``【oaicite:5】``&#8203;&#8203;``【oaicite:4】``&#8203;No video track found in $videoFilePath")
+                HLog.d(MainHook.TAG,"No video track found in $videoFilePath")
             }
             extractor.selectTrack(trackIndex)
             val mediaFormat = extractor.getTrackFormat(trackIndex)
@@ -92,10 +94,9 @@ class VideoToFrames : Runnable {
             showSupportedColorFormat(decoder.codecInfo.getCapabilitiesForType(mime))
             if (isColorFormatSupported(decodeColorFormat, decoder.codecInfo.getCapabilitiesForType(mime))) {
                 mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, decodeColorFormat)
-                XposedBridge.log("&#8203;``【oaicite:3】``&#8203;&#8203;``【oaicite:2】``&#8203;set decode color format to type $decodeColorFormat")
+                HLog.d(MainHook.TAG,"set decode color format to type decodeColorFormat=$decodeColorFormat")
             } else {
-                Log.i(ContentValues.TAG, "unable to set decode color format, color format type $decodeColorFormat not supported")
-                XposedBridge.log("&#8203;``【oaicite:1】``&#8203;&#8203;``【oaicite:0】``&#8203;unable to set decode color format, color format type $decodeColorFormat not supported")
+                HLog.d(MainHook.TAG,"unable to set decode color format, color format type $decodeColorFormat not supported")
             }
             decodeFramesToImage(decoder, extractor, mediaFormat)
             decoder.stop()
@@ -158,7 +159,6 @@ class VideoToFrames : Runnable {
                     val inputBuffer = decoder.getInputBuffer(inputBufferId)
                     val sampleSize = extractor.readSampleData(inputBuffer!!, 0)
                     if (sampleSize < 0) {
-                        // 循环播放
                         decoder.queueInputBuffer(inputBufferId, 0, 0, 0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                         sawInputEOS = true
                     } else {
@@ -192,7 +192,7 @@ class VideoToFrames : Runnable {
 
                         if (outputImageFormat != null) {
 //                            MainHook.data_buffer  =bitmapToYUV( imageToBitmap(image))
-                           // MainHook.data_buffer = getDataFromImage(image)
+                            MainHook.data_buffer = getDataFromImage(image)
                         }
                         image.close()
                     }
@@ -202,8 +202,8 @@ class VideoToFrames : Runnable {
                         try {
                             Thread.sleep(sleepTime)
                         } catch (e: InterruptedException) {
-                            XposedBridge.log("&#8203;``【oaicite:1】``&#8203;" + e.toString())
-                            XposedBridge.log("&#8203;``【oaicite:0】``&#8203;线程延迟出错")
+                            HLog.d(MainHook.TAG,"线程延迟出错 message=${e.message}")
+
                         }
                     }
                     decoder.releaseOutputBuffer(outputBufferId, true)
@@ -230,11 +230,11 @@ class VideoToFrames : Runnable {
             // 添加更多格式根据需要
             else -> "Unknown format: $format"
         }
-        Log.d("vcamsx", "Image format is $formatString")
+        HLog.d(TAG, "aaa Image format is $formatString")
     }
 
     fun imageToBitmap(image: Image): Bitmap {
-        Log.d("vcamsx",image.format.toString())
+        HLog.d(MainHook.TAG,image.format.toString())
         val yBuffer = image.planes[0].buffer // Y
         val uBuffer = image.planes[1].buffer // U
         val vBuffer = image.planes[2].buffer // V
@@ -417,7 +417,7 @@ class VideoToFrames : Runnable {
 
     private fun isImageFormatSupported(image: Image): Boolean {
         val format = image.format
-        Log.d("vcamsx", "format$format")
+        HLog.d(MainHook.TAG, "isImageFormatSupported format=$format")
         return when (format) {
             ImageFormat.YUV_420_888, ImageFormat.NV21, ImageFormat.YV12 -> true
             else -> false
